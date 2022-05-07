@@ -247,6 +247,13 @@ def generate_image(
         draw = ImageDraw.Draw(image)
 
         draw.rectangle(
+            [0, 0, 499, 499],
+            fill=None,
+            outline=fg_color,
+            width=2,
+        )
+
+        draw.rectangle(
             [
                 (image_width - max_width) / 2,
                 (image_height - max_height) / 2,
