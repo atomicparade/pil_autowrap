@@ -1,5 +1,6 @@
 run:
-	@./pil_autowrap/pil_autowrap.py LOGLEVEL=DEBUG
+	rm -rf output
+	./pil_autowrap/pil_autowrap.py LOGLEVEL=DEBUG
 
 lint:
 	black pil_autowrap

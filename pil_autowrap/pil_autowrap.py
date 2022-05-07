@@ -13,14 +13,12 @@ from PIL.ImageFont import FreeTypeFont  # type: ignore
 logging.basicConfig(level="DEBUG")
 logger = logging.getLogger(__name__)
 
-IMAGE_NUMBER = 0
-OUTPUT_PATH = "output"
-
 
 def wrap_text(
     font: FreeTypeFont,
     text: str,
     max_width: int,
+    text_direction: str = "ltr",
 ) -> str:
     words = text.split()
 
@@ -29,16 +27,16 @@ def wrap_text(
 
     for word in words:
         if curr_line_width == 0:
-            word_width = font.getlength(word)
+            word_width = font.getlength(word, text_direction)
 
             lines[-1] = word
             curr_line_width = word_width
         else:
-            new_line_width = font.getlength(f"{lines[-1]} {word}")
+            new_line_width = font.getlength(f"{lines[-1]} {word}", text_direction)
 
             if new_line_width > max_width:
                 # Word is too long to fit on the current line
-                word_width = font.getlength(word)
+                word_width = font.getlength(word, text_direction)
 
                 # Put the word on the next line
                 lines.append(word)
@@ -57,6 +55,7 @@ def try_fit_text(
     max_width: int,
     max_height: int,
     line_spacing: int = 4,
+    text_direction: str = "ltr",
 ) -> Optional[str]:
     words = text.split()
 
@@ -71,7 +70,7 @@ def try_fit_text(
 
     for word in words:
         if curr_line_width == 0:
-            word_width = font.getlength(word)
+            word_width = font.getlength(word, text_direction)
 
             if word_width > max_width:
                 # Word is longer than max_width
@@ -80,11 +79,11 @@ def try_fit_text(
             lines[-1] = word
             curr_line_width = word_width
         else:
-            new_line_width = font.getlength(f"{lines[-1]} {word}")
+            new_line_width = font.getlength(f"{lines[-1]} {word}", text_direction)
 
             if new_line_width > max_width:
                 # Word is too long to fit on the current line
-                word_width = font.getlength(word)
+                word_width = font.getlength(word, text_direction)
                 new_num_lines = len(lines) + 1
                 new_text_height = (new_num_lines * line_height) + (
                     new_num_lines * line_spacing
@@ -114,6 +113,7 @@ def fit_text(
     line_spacing: int = 4,
     scale_factor: float = 0.8,
     max_iterations: int = 5,
+    text_direction: str = "ltr",
 ) -> Tuple[FreeTypeFont, str]:
     """
     Automatically determines text wrapping and appropriate font size.
@@ -144,6 +144,7 @@ def fit_text(
             max_width,
             max_height,
             line_spacing,
+            text_direction,
         )
 
         if wrapped_text:
@@ -152,12 +153,15 @@ def fit_text(
 
     # Give up and wrap the text at the last size
     logger.debug("Gave up trying to fit text; just wrapping text")
-    wrapped_text = wrap_text(trial_font, text, max_width)
+    wrapped_text = wrap_text(trial_font, text, max_width, text_direction)
 
     return (trial_font, wrapped_text)
 
 
 def generate_image(
+    text: str,
+    output_path: str,
+    metadata_font: FreeTypeFont,
     image_width: int,
     image_height: int,
     bg_color: str,
@@ -165,16 +169,13 @@ def generate_image(
     bb_color: str,
     font_name: str,
     font_size: int,
-    text: str,
     max_width: int,
     max_height: int,
     line_spacing: int,
     scale_factor: float,
     max_iterations: int,
+    text_direction: str,
 ) -> None:
-    # pylint: disable=global-statement
-    global IMAGE_NUMBER
-
     with Image.new(
         mode="RGBA", size=(image_width, image_height), color=bg_color
     ) as image:
@@ -201,6 +202,7 @@ def generate_image(
             line_spacing,
             scale_factor,
             max_iterations,
+            text_direction,
         )
 
         draw.multiline_text(
@@ -213,158 +215,388 @@ def generate_image(
             align="center",
         )
 
-        output_path = os.path.join(OUTPUT_PATH, f"image-{IMAGE_NUMBER}.png")
+        draw.text(
+            xy=(5, 5),
+            text=f"Dimensions: ({image_width}, {image_height})",
+            fill=fg_color,
+            font=metadata_font,
+        )
+
+        draw.text(
+            xy=(5, 18),
+            text=(
+                f"Scale factor: {scale_factor}; max iterations: {max_iterations}; "
+                f"final font size: {sized_font.size}"
+            ),
+            fill=fg_color,
+            font=metadata_font,
+        )
+
+        draw.text(
+            xy=(
+                (image_width - max_width) / 2,
+                (image_height - max_height) / 2 - 15,
+            ),
+            text=f"Box: ({max_width}, {max_height})",
+            fill=bb_color,
+            font=metadata_font,
+        )
+
+        filename = (
+            f"image_dims({image_width}x{image_height})_"
+            f"box({max_width}x{max_height})_"
+            f"maxiter({max_iterations}).png"
+        )
+
+        output_path = os.path.join(output_path, filename)
 
         image.save(output_path)
 
-    IMAGE_NUMBER += 1
 
+def generate_images(
+    text: str,
+    output_path: str,
+    text_direction: str,
+    font_name: str,
+    metadata_font: FreeTypeFont,
+) -> None:
+    os.makedirs(output_path, exist_ok=True)
 
-def main() -> None:
     image_width = 500
     image_height = 500
     bg_color = "white"
     fg_color = "black"
     bb_color = "red"
-
-    font_name = "Montserrat-SemiBold.ttf"
     font_size = 100
-    text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit"
-    max_width = 400
-    max_height = 400
     line_spacing = 4
     scale_factor = 0.8
-    max_iterations = 5
+    max_iterations = 20
 
-    text = "Lorem ipsum dolor sit amet, consectetur"
-
-    os.makedirs(OUTPUT_PATH, exist_ok=True)
-
-    max_width = 400
-    max_height = 400
     generate_image(
-        image_width,
-        image_height,
-        bg_color,
-        fg_color,
-        bb_color,
-        font_name,
-        font_size,
-        text,
-        max_width,
-        max_height,
-        line_spacing,
-        scale_factor,
-        max_iterations,
+        text=text,
+        output_path=output_path,
+        metadata_font=metadata_font,
+        image_width=image_width,
+        image_height=image_height,
+        bg_color=bg_color,
+        fg_color=fg_color,
+        bb_color=bb_color,
+        font_name=font_name,
+        font_size=font_size,
+        max_width=400,
+        max_height=400,
+        line_spacing=line_spacing,
+        scale_factor=scale_factor,
+        max_iterations=max_iterations,
+        text_direction=text_direction,
     )
 
-    max_width = 300
-    max_height = 300
     generate_image(
-        image_width,
-        image_height,
-        bg_color,
-        fg_color,
-        bb_color,
-        font_name,
-        font_size,
-        text,
-        max_width,
-        max_height,
-        line_spacing,
-        scale_factor,
-        max_iterations,
+        text=text,
+        output_path=output_path,
+        metadata_font=metadata_font,
+        image_width=image_width,
+        image_height=image_height,
+        bg_color=bg_color,
+        fg_color=fg_color,
+        bb_color=bb_color,
+        font_name=font_name,
+        font_size=font_size,
+        max_width=400,
+        max_height=300,
+        line_spacing=line_spacing,
+        scale_factor=scale_factor,
+        max_iterations=max_iterations,
+        text_direction=text_direction,
     )
 
-    max_width = 200
-    max_height = 200
     generate_image(
-        image_width,
-        image_height,
-        bg_color,
-        fg_color,
-        bb_color,
-        font_name,
-        font_size,
-        text,
-        max_width,
-        max_height,
-        line_spacing,
-        scale_factor,
-        max_iterations,
+        text=text,
+        output_path=output_path,
+        metadata_font=metadata_font,
+        image_width=image_width,
+        image_height=image_height,
+        bg_color=bg_color,
+        fg_color=fg_color,
+        bb_color=bb_color,
+        font_name=font_name,
+        font_size=font_size,
+        max_width=400,
+        max_height=200,
+        line_spacing=line_spacing,
+        scale_factor=scale_factor,
+        max_iterations=max_iterations,
+        text_direction=text_direction,
     )
 
-    max_width = 400
-    max_height = 300
     generate_image(
-        image_width,
-        image_height,
-        bg_color,
-        fg_color,
-        bb_color,
-        font_name,
-        font_size,
-        text,
-        max_width,
-        max_height,
-        line_spacing,
-        scale_factor,
-        max_iterations,
+        text=text,
+        output_path=output_path,
+        metadata_font=metadata_font,
+        image_width=image_width,
+        image_height=image_height,
+        bg_color=bg_color,
+        fg_color=fg_color,
+        bb_color=bb_color,
+        font_name=font_name,
+        font_size=font_size,
+        max_width=400,
+        max_height=100,
+        line_spacing=line_spacing,
+        scale_factor=scale_factor,
+        max_iterations=max_iterations,
+        text_direction=text_direction,
     )
 
-    max_width = 300
-    max_height = 200
     generate_image(
-        image_width,
-        image_height,
-        bg_color,
-        fg_color,
-        bb_color,
-        font_name,
-        font_size,
-        text,
-        max_width,
-        max_height,
-        line_spacing,
-        scale_factor,
-        max_iterations,
+        text=text,
+        output_path=output_path,
+        metadata_font=metadata_font,
+        image_width=image_width,
+        image_height=image_height,
+        bg_color=bg_color,
+        fg_color=fg_color,
+        bb_color=bb_color,
+        font_name=font_name,
+        font_size=font_size,
+        max_width=300,
+        max_height=300,
+        line_spacing=line_spacing,
+        scale_factor=scale_factor,
+        max_iterations=max_iterations,
+        text_direction=text_direction,
     )
 
-    max_width = 300
-    max_height = 100
     generate_image(
-        image_width,
-        image_height,
-        bg_color,
-        fg_color,
-        bb_color,
-        font_name,
-        font_size,
-        text,
-        max_width,
-        max_height,
-        line_spacing,
-        scale_factor,
-        max_iterations,
+        text=text,
+        output_path=output_path,
+        metadata_font=metadata_font,
+        image_width=image_width,
+        image_height=image_height,
+        bg_color=bg_color,
+        fg_color=fg_color,
+        bb_color=bb_color,
+        font_name=font_name,
+        font_size=font_size,
+        max_width=300,
+        max_height=200,
+        line_spacing=line_spacing,
+        scale_factor=scale_factor,
+        max_iterations=max_iterations,
+        text_direction=text_direction,
     )
 
-    max_width = 300
-    max_height = 100
-    max_iterations = 10
     generate_image(
-        image_width,
-        image_height,
-        bg_color,
-        fg_color,
-        bb_color,
-        font_name,
-        font_size,
-        text,
-        max_width,
-        max_height,
-        line_spacing,
-        scale_factor,
-        max_iterations,
+        text=text,
+        output_path=output_path,
+        metadata_font=metadata_font,
+        image_width=image_width,
+        image_height=image_height,
+        bg_color=bg_color,
+        fg_color=fg_color,
+        bb_color=bb_color,
+        font_name=font_name,
+        font_size=font_size,
+        max_width=300,
+        max_height=100,
+        line_spacing=line_spacing,
+        scale_factor=scale_factor,
+        max_iterations=max_iterations,
+        text_direction=text_direction,
+    )
+
+    generate_image(
+        text=text,
+        output_path=output_path,
+        metadata_font=metadata_font,
+        image_width=image_width,
+        image_height=image_height,
+        bg_color=bg_color,
+        fg_color=fg_color,
+        bb_color=bb_color,
+        font_name=font_name,
+        font_size=font_size,
+        max_width=200,
+        max_height=200,
+        line_spacing=line_spacing,
+        scale_factor=scale_factor,
+        max_iterations=max_iterations,
+        text_direction=text_direction,
+    )
+
+    generate_image(
+        text=text,
+        output_path=output_path,
+        metadata_font=metadata_font,
+        image_width=image_width,
+        image_height=image_height,
+        bg_color=bg_color,
+        fg_color=fg_color,
+        bb_color=bb_color,
+        font_name=font_name,
+        font_size=font_size,
+        max_width=200,
+        max_height=100,
+        line_spacing=line_spacing,
+        scale_factor=scale_factor,
+        max_iterations=max_iterations,
+        text_direction=text_direction,
+    )
+
+    generate_image(
+        text=text,
+        output_path=output_path,
+        metadata_font=metadata_font,
+        image_width=image_width,
+        image_height=image_height,
+        bg_color=bg_color,
+        fg_color=fg_color,
+        bb_color=bb_color,
+        font_name=font_name,
+        font_size=font_size,
+        max_width=300,
+        max_height=400,
+        line_spacing=line_spacing,
+        scale_factor=scale_factor,
+        max_iterations=max_iterations,
+        text_direction=text_direction,
+    )
+
+    generate_image(
+        text=text,
+        output_path=output_path,
+        metadata_font=metadata_font,
+        image_width=image_width,
+        image_height=image_height,
+        bg_color=bg_color,
+        fg_color=fg_color,
+        bb_color=bb_color,
+        font_name=font_name,
+        font_size=font_size,
+        max_width=200,
+        max_height=400,
+        line_spacing=line_spacing,
+        scale_factor=scale_factor,
+        max_iterations=max_iterations,
+        text_direction=text_direction,
+    )
+
+    generate_image(
+        text=text,
+        output_path=output_path,
+        metadata_font=metadata_font,
+        image_width=image_width,
+        image_height=image_height,
+        bg_color=bg_color,
+        fg_color=fg_color,
+        bb_color=bb_color,
+        font_name=font_name,
+        font_size=font_size,
+        max_width=100,
+        max_height=400,
+        line_spacing=line_spacing,
+        scale_factor=scale_factor,
+        max_iterations=max_iterations,
+        text_direction=text_direction,
+    )
+
+    generate_image(
+        text=text,
+        output_path=output_path,
+        metadata_font=metadata_font,
+        image_width=image_width,
+        image_height=image_height,
+        bg_color=bg_color,
+        fg_color=fg_color,
+        bb_color=bb_color,
+        font_name=font_name,
+        font_size=font_size,
+        max_width=200,
+        max_height=300,
+        line_spacing=line_spacing,
+        scale_factor=scale_factor,
+        max_iterations=max_iterations,
+        text_direction=text_direction,
+    )
+
+    generate_image(
+        text=text,
+        output_path=output_path,
+        metadata_font=metadata_font,
+        image_width=image_width,
+        image_height=image_height,
+        bg_color=bg_color,
+        fg_color=fg_color,
+        bb_color=bb_color,
+        font_name=font_name,
+        font_size=font_size,
+        max_width=100,
+        max_height=300,
+        line_spacing=line_spacing,
+        scale_factor=scale_factor,
+        max_iterations=max_iterations,
+        text_direction=text_direction,
+    )
+
+    generate_image(
+        text=text,
+        output_path=output_path,
+        metadata_font=metadata_font,
+        image_width=image_width,
+        image_height=image_height,
+        bg_color=bg_color,
+        fg_color=fg_color,
+        bb_color=bb_color,
+        font_name=font_name,
+        font_size=font_size,
+        max_width=100,
+        max_height=200,
+        line_spacing=line_spacing,
+        scale_factor=scale_factor,
+        max_iterations=max_iterations,
+        text_direction=text_direction,
+    )
+
+
+def main() -> None:
+    metadata_font = ImageFont.truetype("fonts/Montserrat-SemiBold.ttf", size=10)
+
+    generate_images(
+        text=(
+            "مشروع موسوعة حرة يستطيع الجميع تحريرها. "
+            "توجد الآن 1٬165٬739 مقالة بالعربية."
+        ),
+        output_path=os.path.join("output", "ar"),
+        text_direction="rtl",
+        font_name="fonts/LateefGR-Regular.ttf",
+        metadata_font=metadata_font,
+    )
+    generate_images(
+        text=(
+            "Welcome to Wikipedia, the free encyclopedia that anyone can edit. "
+            "6,495,153 articles in English"
+        ),
+        output_path=os.path.join("output", "en"),
+        text_direction="ltr",
+        font_name="fonts/Montserrat-SemiBold.ttf",
+        metadata_font=metadata_font,
+    )
+    generate_images(
+        text=(
+            "ויקיפדיה היא מיזם רב־לשוני לחיבור אנציקלופדיה שיתופית, חופשית ומהימנה, "
+            "שכולם יכולים לערוך."
+        ),
+        output_path=os.path.join("output", "he"),
+        text_direction="rtl",
+        font_name="fonts/EzraSIL.ttf",
+        metadata_font=metadata_font,
+    )
+    generate_images(
+        text=("ウィキペディアは誰でも編集できるフリー百科事典です. " "1,324,580本の記事をあなたと"),
+        output_path=os.path.join("output", "jp"),
+        text_direction="ltr",
+        font_name="fonts/NotoSansJP-Regular.otf",
+        metadata_font=metadata_font,
     )
 
 
