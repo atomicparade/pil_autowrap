@@ -667,10 +667,31 @@ def main() -> None:
         metadata_font=metadata_font,
     )
     generate_images(
-        text=("ウィキペディアは誰でも編集できるフリー百科事典です. " "1,324,580本の記事をあなたと"),
+        text=("ウィキペディアは誰でも編集できるフリー百科事典です. 1,324,580本の記事をあなたと"),
         output_path=os.path.join("output", "jp"),
         direction="ltr",
         font_name="fonts/NotoSansJP-Regular.otf",
+        metadata_font=metadata_font,
+    )
+    generate_images(
+        text=("위키백과 - 우리 모두가 만들어가는 자유 백과사전. 문서 587,814개와 최근 기여자 2,054명"),
+        output_path=os.path.join("output", "ko"),
+        direction="ltr",
+        font_name="fonts/NotoSansKR-Regular.otf",
+        metadata_font=metadata_font,
+    )
+    generate_images(
+        text=("維基百科。海納百川，有容乃大。人人可編輯的自由百科全書。已有1,273,190篇條目。"),
+        output_path=os.path.join("output", "zh_hant"),
+        direction="ltr",
+        font_name="fonts/NotoSansTC-Regular.otf",
+        metadata_font=metadata_font,
+    )
+    generate_images(
+        text=("维基百科。海纳百川，有容乃大。人人可编辑的自由百科全书。已有1,273,190篇条目。"),
+        output_path=os.path.join("output", "zh_hans"),
+        direction="ltr",
+        font_name="fonts/NotoSansSC-Regular.otf",
         metadata_font=metadata_font,
     )
 
