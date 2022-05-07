@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# pylint: disable=missing-module-docstring,missing-function-docstring
+# pylint: disable=missing-module-docstring
 
 import logging
 import os
@@ -18,8 +18,28 @@ def wrap_text(
     font: FreeTypeFont,
     text: str,
     max_width: int,
-    text_direction: str = "ltr",
+    direction: str = "ltr",
 ) -> str:
+    """
+    Wraps the text at the given width.
+
+    :param font: Font to use.
+
+    :param text: Text to fit.
+
+    :param max_width: Maximum width of the final text, in pixels.
+
+    :param max_height: Maximum height height of the final text, in pixels.
+
+    :param spacing: The number of pixels between lines.
+
+    :param direction: Direction of the text. It can be 'rtl' (right to
+                      left), 'ltr' (left to right) or 'ttb' (top to bottom).
+                      Requires libraqm.
+
+    :return: The wrapped text.
+    """
+
     words = text.split()
 
     lines: list[str] = [""]
@@ -27,16 +47,16 @@ def wrap_text(
 
     for word in words:
         if curr_line_width == 0:
-            word_width = font.getlength(word, text_direction)
+            word_width = font.getlength(word, direction)
 
             lines[-1] = word
             curr_line_width = word_width
         else:
-            new_line_width = font.getlength(f"{lines[-1]} {word}", text_direction)
+            new_line_width = font.getlength(f"{lines[-1]} {word}", direction)
 
             if new_line_width > max_width:
                 # Word is too long to fit on the current line
-                word_width = font.getlength(word, text_direction)
+                word_width = font.getlength(word, direction)
 
                 # Put the word on the next line
                 lines.append(word)
@@ -49,14 +69,38 @@ def wrap_text(
     return "\n".join(lines)
 
 
+# pylint: disable=too-many-arguments
 def try_fit_text(
     font: FreeTypeFont,
     text: str,
     max_width: int,
     max_height: int,
-    line_spacing: int = 4,
-    text_direction: str = "ltr",
+    spacing: int = 4,
+    direction: str = "ltr",
 ) -> Optional[str]:
+    """
+    Attempts to wrap the text into a rectangle.
+
+    Tries to fit the text into a box using the given font at decreasing sizes,
+    based on ``scale_factor``. Makes ``max_iterations`` attempts.
+
+    :param font: Font to use.
+
+    :param text: Text to fit.
+
+    :param max_width: Maximum width of the final text, in pixels.
+
+    :param max_height: Maximum height height of the final text, in pixels.
+
+    :param spacing: The number of pixels between lines.
+
+    :param direction: Direction of the text. It can be 'rtl' (right to
+                      left), 'ltr' (left to right) or 'ttb' (top to bottom).
+                      Requires libraqm.
+
+    :return: If able to fit the text, the wrapped text. Otherwise, ``None``.
+    """
+
     words = text.split()
 
     line_height = font.size
@@ -70,7 +114,7 @@ def try_fit_text(
 
     for word in words:
         if curr_line_width == 0:
-            word_width = font.getlength(word, text_direction)
+            word_width = font.getlength(word, direction)
 
             if word_width > max_width:
                 # Word is longer than max_width
@@ -79,14 +123,14 @@ def try_fit_text(
             lines[-1] = word
             curr_line_width = word_width
         else:
-            new_line_width = font.getlength(f"{lines[-1]} {word}", text_direction)
+            new_line_width = font.getlength(f"{lines[-1]} {word}", direction)
 
             if new_line_width > max_width:
                 # Word is too long to fit on the current line
-                word_width = font.getlength(word, text_direction)
+                word_width = font.getlength(word, direction)
                 new_num_lines = len(lines) + 1
                 new_text_height = (new_num_lines * line_height) + (
-                    new_num_lines * line_spacing
+                    new_num_lines * spacing
                 )
 
                 if word_width > max_width or new_text_height > max_height:
@@ -105,25 +149,43 @@ def try_fit_text(
     return "\n".join(lines)
 
 
+# pylint: disable=too-many-arguments
 def fit_text(
     font: FreeTypeFont,
     text: str,
     max_width: int,
     max_height: int,
-    line_spacing: int = 4,
+    spacing: int = 4,
     scale_factor: float = 0.8,
     max_iterations: int = 5,
-    text_direction: str = "ltr",
+    direction: str = "ltr",
 ) -> Tuple[FreeTypeFont, str]:
     """
     Automatically determines text wrapping and appropriate font size.
 
-    :param font:
-    :param text:
-    :param max_width:
-    :param max_height:
+    Tries to fit the text into a box using the given font at decreasing sizes,
+    based on ``scale_factor``. Makes ``max_iterations`` attempts.
+
+    If unable to find an appropriate font size within ``max_iterations``
+    attempts, wraps the text at the last attempted size.
+
+    :param font: Font to use.
+
+    :param text: Text to fit.
+
+    :param max_width: Maximum width of the final text, in pixels.
+
+    :param max_height: Maximum height height of the final text, in pixels.
+
+    :param spacing: The number of pixels between lines.
+
     :param scale_factor:
-    :param max_iterations:
+
+    :param max_iterations: Maximum number of attempts to try to fit the text.
+
+    :param direction: Direction of the text. It can be 'rtl' (right to
+                      left), 'ltr' (left to right) or 'ttb' (top to bottom).
+                      Requires libraqm.
 
     :return: The font at the appropriate size and the wrapped text.
     """
@@ -143,8 +205,8 @@ def fit_text(
             text,
             max_width,
             max_height,
-            line_spacing,
-            text_direction,
+            spacing,
+            direction,
         )
 
         if wrapped_text:
@@ -153,11 +215,12 @@ def fit_text(
 
     # Give up and wrap the text at the last size
     logger.debug("Gave up trying to fit text; just wrapping text")
-    wrapped_text = wrap_text(trial_font, text, max_width, text_direction)
+    wrapped_text = wrap_text(trial_font, text, max_width, direction)
 
     return (trial_font, wrapped_text)
 
 
+# pylint: disable=too-many-arguments,too-many-locals
 def generate_image(
     text: str,
     output_path: str,
@@ -171,11 +234,13 @@ def generate_image(
     font_size: int,
     max_width: int,
     max_height: int,
-    line_spacing: int,
+    spacing: int,
     scale_factor: float,
     max_iterations: int,
-    text_direction: str,
+    direction: str,
 ) -> None:
+    """Generate a test image for the given text and font."""
+
     with Image.new(
         mode="RGBA", size=(image_width, image_height), color=bg_color
     ) as image:
@@ -199,10 +264,10 @@ def generate_image(
             text,
             max_width,
             max_height,
-            line_spacing,
+            spacing,
             scale_factor,
             max_iterations,
-            text_direction,
+            direction,
         )
 
         draw.multiline_text(
@@ -211,7 +276,7 @@ def generate_image(
             fill=fg_color,
             font=sized_font,
             anchor="mm",
-            spacing=line_spacing,
+            spacing=spacing,
             align="center",
         )
 
@@ -243,9 +308,8 @@ def generate_image(
         )
 
         filename = (
-            f"image_dims({image_width}x{image_height})_"
-            f"box({max_width}x{max_height})_"
-            f"maxiter({max_iterations}).png"
+            f"imagedims({image_width}x{image_height})_"
+            f"box({max_width}x{max_height}).png"
         )
 
         output_path = os.path.join(output_path, filename)
@@ -256,10 +320,12 @@ def generate_image(
 def generate_images(
     text: str,
     output_path: str,
-    text_direction: str,
+    direction: str,
     font_name: str,
     metadata_font: FreeTypeFont,
 ) -> None:
+    """Generate test images for the given text."""
+
     os.makedirs(output_path, exist_ok=True)
 
     image_width = 500
@@ -268,7 +334,7 @@ def generate_images(
     fg_color = "black"
     bb_color = "red"
     font_size = 100
-    line_spacing = 4
+    spacing = 4
     scale_factor = 0.8
     max_iterations = 20
 
@@ -285,10 +351,10 @@ def generate_images(
         font_size=font_size,
         max_width=400,
         max_height=400,
-        line_spacing=line_spacing,
+        spacing=spacing,
         scale_factor=scale_factor,
         max_iterations=max_iterations,
-        text_direction=text_direction,
+        direction=direction,
     )
 
     generate_image(
@@ -304,10 +370,10 @@ def generate_images(
         font_size=font_size,
         max_width=400,
         max_height=300,
-        line_spacing=line_spacing,
+        spacing=spacing,
         scale_factor=scale_factor,
         max_iterations=max_iterations,
-        text_direction=text_direction,
+        direction=direction,
     )
 
     generate_image(
@@ -323,10 +389,10 @@ def generate_images(
         font_size=font_size,
         max_width=400,
         max_height=200,
-        line_spacing=line_spacing,
+        spacing=spacing,
         scale_factor=scale_factor,
         max_iterations=max_iterations,
-        text_direction=text_direction,
+        direction=direction,
     )
 
     generate_image(
@@ -342,10 +408,10 @@ def generate_images(
         font_size=font_size,
         max_width=400,
         max_height=100,
-        line_spacing=line_spacing,
+        spacing=spacing,
         scale_factor=scale_factor,
         max_iterations=max_iterations,
-        text_direction=text_direction,
+        direction=direction,
     )
 
     generate_image(
@@ -361,10 +427,10 @@ def generate_images(
         font_size=font_size,
         max_width=300,
         max_height=300,
-        line_spacing=line_spacing,
+        spacing=spacing,
         scale_factor=scale_factor,
         max_iterations=max_iterations,
-        text_direction=text_direction,
+        direction=direction,
     )
 
     generate_image(
@@ -380,10 +446,10 @@ def generate_images(
         font_size=font_size,
         max_width=300,
         max_height=200,
-        line_spacing=line_spacing,
+        spacing=spacing,
         scale_factor=scale_factor,
         max_iterations=max_iterations,
-        text_direction=text_direction,
+        direction=direction,
     )
 
     generate_image(
@@ -399,10 +465,10 @@ def generate_images(
         font_size=font_size,
         max_width=300,
         max_height=100,
-        line_spacing=line_spacing,
+        spacing=spacing,
         scale_factor=scale_factor,
         max_iterations=max_iterations,
-        text_direction=text_direction,
+        direction=direction,
     )
 
     generate_image(
@@ -418,10 +484,10 @@ def generate_images(
         font_size=font_size,
         max_width=200,
         max_height=200,
-        line_spacing=line_spacing,
+        spacing=spacing,
         scale_factor=scale_factor,
         max_iterations=max_iterations,
-        text_direction=text_direction,
+        direction=direction,
     )
 
     generate_image(
@@ -437,10 +503,10 @@ def generate_images(
         font_size=font_size,
         max_width=200,
         max_height=100,
-        line_spacing=line_spacing,
+        spacing=spacing,
         scale_factor=scale_factor,
         max_iterations=max_iterations,
-        text_direction=text_direction,
+        direction=direction,
     )
 
     generate_image(
@@ -456,10 +522,10 @@ def generate_images(
         font_size=font_size,
         max_width=300,
         max_height=400,
-        line_spacing=line_spacing,
+        spacing=spacing,
         scale_factor=scale_factor,
         max_iterations=max_iterations,
-        text_direction=text_direction,
+        direction=direction,
     )
 
     generate_image(
@@ -475,10 +541,10 @@ def generate_images(
         font_size=font_size,
         max_width=200,
         max_height=400,
-        line_spacing=line_spacing,
+        spacing=spacing,
         scale_factor=scale_factor,
         max_iterations=max_iterations,
-        text_direction=text_direction,
+        direction=direction,
     )
 
     generate_image(
@@ -494,10 +560,10 @@ def generate_images(
         font_size=font_size,
         max_width=100,
         max_height=400,
-        line_spacing=line_spacing,
+        spacing=spacing,
         scale_factor=scale_factor,
         max_iterations=max_iterations,
-        text_direction=text_direction,
+        direction=direction,
     )
 
     generate_image(
@@ -513,10 +579,10 @@ def generate_images(
         font_size=font_size,
         max_width=200,
         max_height=300,
-        line_spacing=line_spacing,
+        spacing=spacing,
         scale_factor=scale_factor,
         max_iterations=max_iterations,
-        text_direction=text_direction,
+        direction=direction,
     )
 
     generate_image(
@@ -532,10 +598,10 @@ def generate_images(
         font_size=font_size,
         max_width=100,
         max_height=300,
-        line_spacing=line_spacing,
+        spacing=spacing,
         scale_factor=scale_factor,
         max_iterations=max_iterations,
-        text_direction=text_direction,
+        direction=direction,
     )
 
     generate_image(
@@ -551,14 +617,16 @@ def generate_images(
         font_size=font_size,
         max_width=100,
         max_height=200,
-        line_spacing=line_spacing,
+        spacing=spacing,
         scale_factor=scale_factor,
         max_iterations=max_iterations,
-        text_direction=text_direction,
+        direction=direction,
     )
 
 
 def main() -> None:
+    """Generate test images for text auto-wrapping."""
+
     metadata_font = ImageFont.truetype("fonts/Montserrat-SemiBold.ttf", size=10)
 
     generate_images(
@@ -567,7 +635,7 @@ def main() -> None:
             "توجد الآن 1٬165٬739 مقالة بالعربية."
         ),
         output_path=os.path.join("output", "ar"),
-        text_direction="rtl",
+        direction="rtl",
         font_name="fonts/LateefGR-Regular.ttf",
         metadata_font=metadata_font,
     )
@@ -577,7 +645,7 @@ def main() -> None:
             "6,495,153 articles in English"
         ),
         output_path=os.path.join("output", "en"),
-        text_direction="ltr",
+        direction="ltr",
         font_name="fonts/Montserrat-SemiBold.ttf",
         metadata_font=metadata_font,
     )
@@ -587,14 +655,14 @@ def main() -> None:
             "שכולם יכולים לערוך."
         ),
         output_path=os.path.join("output", "he"),
-        text_direction="rtl",
+        direction="rtl",
         font_name="fonts/EzraSIL.ttf",
         metadata_font=metadata_font,
     )
     generate_images(
         text=("ウィキペディアは誰でも編集できるフリー百科事典です. " "1,324,580本の記事をあなたと"),
         output_path=os.path.join("output", "jp"),
-        text_direction="ltr",
+        direction="ltr",
         font_name="fonts/NotoSansJP-Regular.otf",
         metadata_font=metadata_font,
     )
