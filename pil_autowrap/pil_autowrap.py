@@ -342,8 +342,8 @@ def generate_images(
     bb_color = "red"
     font_size = 100
     spacing = 4
-    scale_factor = 0.8
-    max_iterations = 20
+    scale_factor = 0.95
+    max_iterations = 50
 
     generate_image(
         text=text,
