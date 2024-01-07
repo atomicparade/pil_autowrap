@@ -101,7 +101,12 @@ def try_fit_text(
     :return: If able to fit the text, the wrapped text. Otherwise, ``None``.
     """
 
-    words = text.split()
+    words = []
+    # first split the text into lines
+    lns = text.splitlines()
+    for ln in lns:  
+        logger.debug(f'ln--{ln}')
+        words += ln.split() + ['']
 
     line_height = font.size
 
@@ -113,6 +118,23 @@ def try_fit_text(
     curr_line_width = 0
 
     for word in words:
+        # if the word is just a new-line
+        if len(word) == 0: 
+            word_width = font.getlength(word, direction)
+            new_num_lines = len(lines) + 1
+            new_text_height = (new_num_lines * line_height) + (
+                new_num_lines * spacing
+            )
+
+            if word_width > max_width or new_text_height > max_height:
+                # Word is longer than max_width, and
+                # adding a new line would make the text too tall
+                return None
+
+            # Put the word on the next line
+            lines.append(word)
+            curr_line_width = word_width
+
         if curr_line_width == 0:
             word_width = font.getlength(word, direction)
 
@@ -648,7 +670,7 @@ def main() -> None:
     )
     generate_images(
         text=(
-            "Welcome to Wikipedia, the free encyclopedia that anyone can edit. "
+            "Welcome to Wikipedia, the free encyclopedia that anyone can edit.\n"
             "6,495,153 articles in English"
         ),
         output_path=os.path.join("output", "en"),
